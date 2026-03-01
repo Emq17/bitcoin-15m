@@ -95,24 +95,11 @@ python -m src.run_experiments --data data/btcusd_90d.csv --out_dir results/runs 
 python -m src.report --runs_dir results/runs --out_dir results/report --mc_sims 2000
 ```
 
-Generated artifacts:
-
-- `results/runs/<run_id>/config.json`
-- `results/runs/<run_id>/summary.json`
-- `results/runs/<run_id>/fold_metrics.csv`
-- `results/runs/<run_id>/predictions.csv`
-- `results/report/summary_table.csv`
-- `results/report/key_findings.md` (README-ready summary block)
-- `results/report/overall_metrics.png`
-- `results/report/confidence_tradeoff.png` (if multiple `min_conf` values are present)
-- `results/report/per_run/<run_id>/*.png`
-- `results/report/snapshots/*.png` (stable filenames for README embedding)
-
 ## Results Snapshot
 
 Representative visuals (lightweight view) are generated into `results/report/snapshots/`.
 
-![15m run comparison](results/report/snapshots/overall_metrics_h15.png)
+15m summary metrics are listed in the **Key Findings** table below.
 ![Best run Monte Carlo paths](results/report/snapshots/best_run_monte_carlo_paths.png)
 
 Detailed visuals (calibration, fold metrics, Monte Carlo distribution, equity/drawdown) stay in:
@@ -123,30 +110,19 @@ Detailed visuals (calibration, fold metrics, Monte Carlo distribution, equity/dr
 <!-- AUTO_KEY_FINDINGS_START -->
 Updated automatically from `results/report/summary_table.csv`.
 
-### Best Configuration
+### Performance Report (15m Focus)
 
-- The strongest setup so far is: 15-minute horizon, entry minute 13, logreg (calibrated), confidence threshold 0.0.
-- It shows AUC `0.9731` (higher means better separation of up vs down candles), accuracy `0.9181`, and Brier `0.0655` (lower means better probability quality).
-- Trade participation (take rate) is `1.0000`.
+| Setup | Net Quality | Hit Rate | Prob Error | Trade Participation |
+|---|---:|---:|---:|---:|
+| e13, LogReg Cal, conf 0.00 | 0.9731 | 0.9181 | 0.0655 | 1.0000 |
+| e13, LogReg Cal, conf 0.05 | 0.9731 | 0.9181 | 0.0655 | 0.9959 |
+| e13, RF NoCal, conf 0.00 | 0.9574 | 0.9203 | 0.0720 | 1.0000 |
 
-### 15-Minute Focus
+### Quick Read
 
-- Best 15m setup: 15-minute horizon, entry minute 13, logreg (calibrated), confidence threshold 0.0.
-  Scores: AUC `0.9731`, accuracy `0.9181`, Brier `0.0655`.
-
-### Secondary 5-Minute Context
-
-- Best 5m setup: 5-minute horizon, entry minute 3, logreg (calibrated), confidence threshold 0.0.
-  Scores: AUC `0.9230`, accuracy `0.8481`, Brier `0.1160`.
-
-### Confidence Threshold Notes
-
-- 15-minute, entry 13, logreg (calibrated): raising confidence threshold from `0.0` to `0.05` changed trade frequency by `-0.0041` and changed AUC by `0.0000`.
-
-### Takeaway
-
-- This repo demonstrates a reproducible research workflow with strict out-of-sample testing and automated reporting.
-- It makes model comparisons easy across time horizons and confidence filters.
+- Current top setup: 15-minute horizon, entry minute 13, logreg (calibrated), confidence threshold 0.0.
+- AUC: higher is better at separating up candles from down candles.
+- Brier: lower is better for probability quality.
 <!-- AUTO_KEY_FINDINGS_END -->
 
 ## Portfolio Notes

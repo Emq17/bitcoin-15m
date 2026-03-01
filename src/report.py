@@ -358,78 +358,37 @@ def _write_key_findings(summary: pd.DataFrame, out_root: Path) -> None:
     lines = []
     lines.append("Updated automatically from `results/report/summary_table.csv`.")
     lines.append("")
-    lines.append("### Best Configuration")
+    lines.append("### Performance Report (15m Focus)")
     lines.append("")
-    lines.append(
-        f"- The strongest setup so far is: {_model_label(best)}."
-    )
-    lines.append(
-        f"- It shows AUC `{_fmt_float(best['auc'])}` (higher means better separation of up vs down candles), "
-        f"accuracy `{_fmt_float(best['acc'])}`, and Brier `{_fmt_float(best['brier'])}` "
-        f"(lower means better probability quality)."
-    )
-    lines.append(
-        f"- Trade participation (take rate) is `{_fmt_float(best['take_rate'])}`."
-    )
-    lines.append("")
-    lines.append("### 15-Minute Focus")
-    lines.append("")
-    s15 = s[s["horizon"] == 15]
-    if not s15.empty:
-        row15 = s15.loc[s15["auc"].idxmax()]
-        lines.append(f"- Best 15m setup: {_model_label(row15)}.")
-        lines.append(
-            f"  Scores: AUC `{_fmt_float(row15['auc'])}`, accuracy `{_fmt_float(row15['acc'])}`, "
-            f"Brier `{_fmt_float(row15['brier'])}`."
-        )
+    lines.append("| Setup | Net Quality | Hit Rate | Prob Error | Trade Participation |")
+    lines.append("|---|---:|---:|---:|---:|")
+    s15 = s[s["horizon"] == 15].copy()
+    if s15.empty:
+        lines.append("| No 15-minute runs found | - | - | - | - |")
     else:
-        lines.append("- No 15-minute runs found in current report inputs.")
-    lines.append("")
-
-    s5 = s[s["horizon"] == 5]
-    if not s5.empty:
-        row5 = s5.loc[s5["auc"].idxmax()]
-        lines.append("### Secondary 5-Minute Context")
-        lines.append("")
-        lines.append(f"- Best 5m setup: {_model_label(row5)}.")
-        lines.append(
-            f"  Scores: AUC `{_fmt_float(row5['auc'])}`, accuracy `{_fmt_float(row5['acc'])}`, "
-            f"Brier `{_fmt_float(row5['brier'])}`."
+        s15 = s15.sort_values(["auc", "acc"], ascending=[False, False])
+        s15 = s15.drop_duplicates(
+            subset=["horizon", "entry_minute", "model", "calibrate", "min_conf"],
+            keep="first",
         )
-        lines.append("")
-
-    if s["min_conf"].nunique() > 1:
-        lines.append("### Confidence Threshold Notes")
-        lines.append("")
-        key_cols = ["horizon", "entry_minute", "model", "calibrate"]
-        wrote = False
-        for key, g in s.groupby(key_cols, dropna=False):
-            if g["min_conf"].nunique() <= 1:
-                continue
-            g = g.sort_values("min_conf")
-            low = g.iloc[0]
-            high = g.iloc[-1]
-            delta_take = float(high["take_rate"] - low["take_rate"])
-            delta_auc = float(high["auc"] - low["auc"])
-            label = (
-                f"{int(key[0])}-minute, entry {int(key[1])}, {key[2]} "
-                f"({'calibrated' if key[3] else 'uncalibrated'})"
-            )
+        for _, row in s15.iterrows():
+            model = "LogReg" if str(row["model"]).lower() == "logreg" else "RF"
+            cal = "Cal" if bool(row["calibrate"]) else "NoCal"
+            setup = f"e{int(row['entry_minute'])}, {model} {cal}, conf {float(row['min_conf']):.2f}"
             lines.append(
-                f"- {label}: raising confidence threshold from `{low['min_conf']}` to `{high['min_conf']}` "
-                f"changed trade frequency by `{_fmt_float(delta_take)}` and changed AUC by `{_fmt_float(delta_auc)}`."
+                f"| {setup} | {_fmt_float(row['auc'])} | {_fmt_float(row['acc'])} | {_fmt_float(row['brier'])} | {_fmt_float(row['take_rate'])} |"
             )
-            wrote = True
-        if wrote:
-            lines.append("")
-
-    lines.append("### Takeaway")
+    lines.append("")
+    lines.append("### Quick Read")
     lines.append("")
     lines.append(
-        "- This repo demonstrates a reproducible research workflow with strict out-of-sample testing and automated reporting."
+        f"- Current top setup: {_model_label(best)}."
     )
     lines.append(
-        "- It makes model comparisons easy across time horizons and confidence filters."
+        "- AUC: higher is better at separating up candles from down candles."
+    )
+    lines.append(
+        "- Brier: lower is better for probability quality."
     )
     lines.append("")
 
