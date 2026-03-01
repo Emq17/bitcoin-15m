@@ -1,5 +1,9 @@
 from __future__ import annotations
 import argparse
+import json
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Optional
 import numpy as np
 import pandas as pd
 from sklearn.metrics import roc_auc_score, accuracy_score, brier_score_loss
@@ -26,6 +30,8 @@ def walk_forward(
     test_days: int,
     min_conf: float,
     mc_sims: int,
+    out_dir: Optional[str] = None,
+    run_name: Optional[str] = None,
 ):
     df_1m = load_1m_csv(data_path)
     feat = build_feature_frame(df_1m, horizon, entry_minute)
@@ -42,6 +48,8 @@ def walk_forward(
     oos_probs = []
     oos_y = []
     oos_taken_returns = []
+    fold_rows = []
+    pred_frames = []
 
     start = lookback
     fold = 0
@@ -94,6 +102,28 @@ def walk_forward(
         taken = taken * take_mask
 
         oos_taken_returns.extend(taken[take_mask])
+        fold_rows.append({
+            "fold": fold,
+            "test_start": str(test_days_list[0]),
+            "test_end": str(test_days_list[-1]),
+            "rows": int(len(y_test)),
+            "auc": float(auc),
+            "acc": float(acc),
+            "brier": float(brier),
+            "trades_taken": int(take_mask.sum()),
+            "take_rate": float(take_mask.mean()),
+        })
+
+        pred_frames.append(pd.DataFrame({
+            "bucket": test["bucket"].values,
+            "date": test["date"].astype(str).values,
+            "y_true": y_test,
+            "p_green": probs,
+            "y_pred": pred,
+            "take_trade": take_mask.astype(int),
+            "trade_return": taken,
+            "fold": fold,
+        }))
 
         print(
             f"Fold {fold:02d} | "
@@ -113,17 +143,26 @@ def walk_forward(
     if len(oos_y) == 0:
         raise ValueError("No OOS predictions generated. Check split settings and data coverage.")
 
+    overall_auc = _safe_auc(oos_y, oos_probs)
+    overall_acc = float(accuracy_score(oos_y, (oos_probs >= 0.5)))
+    overall_brier = float(brier_score_loss(oos_y, oos_probs))
+
     print("\n=== OVERALL OOS METRICS ===")
-    print("AUC:", _safe_auc(oos_y, oos_probs))
-    print("ACC:", accuracy_score(oos_y, (oos_probs >= 0.5)))
-    print("Brier:", brier_score_loss(oos_y, oos_probs))
+    print("AUC:", overall_auc)
+    print("ACC:", overall_acc)
+    print("Brier:", overall_brier)
     print("Predictions:", len(oos_y))
 
+    total_return = float("nan")
+    trades_taken = int(len(oos_taken_returns))
+    take_rate = float(trades_taken / len(oos_y))
+    mc = {}
     if len(oos_taken_returns) > 0:
         equity = np.cumprod(1.0 + oos_taken_returns)
-        print("\nTotal Return (sim):", equity[-1] - 1)
-        print("Trades taken:", len(oos_taken_returns))
-        print("Take rate:", len(oos_taken_returns) / len(oos_y))
+        total_return = float(equity[-1] - 1)
+        print("\nTotal Return (sim):", total_return)
+        print("Trades taken:", trades_taken)
+        print("Take rate:", take_rate)
 
         mc = run_bootstrap(oos_taken_returns, sims=mc_sims)
         print("\n=== MONTE CARLO ===")
@@ -131,6 +170,50 @@ def walk_forward(
             print(k, ":", v)
     else:
         print("\nNo trades taken. Lower min_conf or adjust model.")
+
+
+    summary = {
+        "auc": float(overall_auc),
+        "acc": float(overall_acc),
+        "brier": float(overall_brier),
+        "predictions": int(len(oos_y)),
+        "total_return_sim": float(total_return),
+        "trades_taken": trades_taken,
+        "take_rate": float(take_rate),
+        "mc": mc,
+    }
+    config = {
+        "data_path": data_path,
+        "horizon": int(horizon),
+        "entry_minute": int(entry_minute),
+        "model_name": model_name,
+        "calibrate": bool(calibrate),
+        "lookback_days": int(lookback_days),
+        "test_days": int(test_days),
+        "min_conf": float(min_conf),
+        "mc_sims": int(mc_sims),
+    }
+
+    if out_dir:
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        default_name = f"h{horizon}_e{entry_minute}_{model_name}_{stamp}"
+        run_id = run_name or default_name
+        run_dir = Path(out_dir) / run_id
+        run_dir.mkdir(parents=True, exist_ok=True)
+
+        pd.DataFrame(fold_rows).to_csv(run_dir / "fold_metrics.csv", index=False)
+        pd.concat(pred_frames, ignore_index=True).to_csv(run_dir / "predictions.csv", index=False)
+        with (run_dir / "summary.json").open("w", encoding="utf-8") as f:
+            json.dump(summary, f, indent=2)
+        with (run_dir / "config.json").open("w", encoding="utf-8") as f:
+            json.dump(config, f, indent=2)
+        print(f"\nSaved run artifacts to: {run_dir}")
+
+    return {
+        "summary": summary,
+        "config": config,
+        "fold_metrics": pd.DataFrame(fold_rows),
+    }
 
 
 def main():
@@ -145,6 +228,8 @@ def main():
     ap.add_argument("--test_days", type=int, default=1)
     ap.add_argument("--min_conf", type=float, default=0.0)
     ap.add_argument("--mc_sims", type=int, default=3000)
+    ap.add_argument("--out_dir", default=None, help="Optional output directory for run artifacts")
+    ap.add_argument("--run_name", default=None, help="Optional run folder name")
 
     args = ap.parse_args()
 
@@ -158,6 +243,8 @@ def main():
         test_days=args.test_days,
         min_conf=args.min_conf,
         mc_sims=args.mc_sims,
+        out_dir=args.out_dir,
+        run_name=args.run_name,
     )
 
 

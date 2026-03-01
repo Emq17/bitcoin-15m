@@ -80,6 +80,69 @@ python -m src.walkforward --data data/btcusd_90d.csv --horizon 15 --entry_minute
 python -m src.walkforward --data data/btcusd_90d.csv --horizon 5 --entry_minute 3 --model rf --lookback_days 60 --test_days 14 --mc_sims 5000
 ```
 
+Run reproducible experiment grid + report:
+
+```bash
+python -m src.run_experiments --data data/btcusd_90d.csv --out_dir results/runs --horizons 15,5 --entry_minutes 13,3 --models logreg,rf --calibrate_logreg --lookback_days 60 --test_days 14 --mc_sims 5000
+python -m src.report --runs_dir results/runs --out_dir results/report --mc_sims 2000
+python -m src.report --runs_dir results/runs --out_dir results/report --mc_sims 2000 --inject_readme
+```
+
+Run with confidence-threshold sweep:
+
+```bash
+python -m src.run_experiments --data data/btcusd_90d.csv --out_dir results/runs --horizons 15,5 --entry_minutes 13,3 --models logreg,rf --calibrate_logreg --min_conf_values 0.0,0.02,0.05,0.1 --lookback_days 60 --test_days 14 --mc_sims 5000
+python -m src.report --runs_dir results/runs --out_dir results/report --mc_sims 2000
+```
+
+Generated artifacts:
+
+- `results/runs/<run_id>/config.json`
+- `results/runs/<run_id>/summary.json`
+- `results/runs/<run_id>/fold_metrics.csv`
+- `results/runs/<run_id>/predictions.csv`
+- `results/report/summary_table.csv`
+- `results/report/key_findings.md` (README-ready summary block)
+- `results/report/overall_metrics.png`
+- `results/report/confidence_tradeoff.png` (if multiple `min_conf` values are present)
+- `results/report/per_run/<run_id>/*.png`
+- `results/report/snapshots/*.png` (stable filenames for README embedding)
+
+## Results Snapshot
+
+Representative output visuals are generated into `results/report/snapshots/`.
+
+![Overall OOS metrics](results/report/snapshots/overall_metrics.png)
+![Confidence threshold tradeoff](results/report/snapshots/confidence_tradeoff.png)
+![Best run fold metrics](results/report/snapshots/best_run_fold_metrics.png)
+![Best run calibration](results/report/snapshots/best_run_calibration.png)
+
+## Auto Key Findings
+
+<!-- AUTO_KEY_FINDINGS_START -->
+## Key Findings
+
+Auto-generated from `results/report/summary_table.csv`.
+
+### Overall Best Run (by AUC)
+
+- `20260301T140248Z_h15_e13_logreg_cal` | horizon `15m` | model `logreg` | `min_conf=0.0` | AUC `0.9731` | ACC `0.9181` | Brier `0.0655` | Take rate `1.0000`
+
+### Best by Horizon
+
+- `5m`: `logreg` (`min_conf=0.0`) with AUC `0.9230`, ACC `0.8481`, Brier `0.1160`
+- `15m`: `logreg` (`min_conf=0.0`) with AUC `0.9731`, ACC `0.9181`, Brier `0.0655`
+
+### Confidence Threshold Notes
+
+- `h=15, e=13, logreg, cal`: from `min_conf=0.0` to `0.05` -> take rate change `-0.0041`, AUC change `0.0000`
+
+### Recruiter-Friendly Takeaway
+
+- Built a reproducible, leakage-aware ML research workflow with automated OOS evaluation, risk diagnostics, and visual reporting.
+- Demonstrates disciplined experimentation and model comparison across horizons and confidence filters.
+<!-- AUTO_KEY_FINDINGS_END -->
+
 ## Portfolio Notes
 
 This repository is intentionally public-safe.  

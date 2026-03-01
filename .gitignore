@@ -7,3 +7,10 @@ data/*.parquet
 data/*.pkl
 .DS_Store
 .ipynb_checkpoints/
+results/runs/
+results/.mplconfig/
+results/.cache/
+results/report/*
+!results/report/summary_table.csv
+!results/report/snapshots/
+!results/report/snapshots/*.png
