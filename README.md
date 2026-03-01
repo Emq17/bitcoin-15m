@@ -114,13 +114,7 @@ Representative visuals (lightweight view) are generated into `results/report/sna
 
 ![5m run comparison](results/report/snapshots/overall_metrics_h5.png)
 ![15m run comparison](results/report/snapshots/overall_metrics_h15.png)
-
-### Chart Key (Plain English)
-
-- `AUC`: How well the model separates green vs red candles. Higher is better.
-- `Accuracy`: Percent of correct direction calls. Higher is better.
-- `Brier`: How far predicted probabilities are from actual outcomes. Lower is better.
-- `Take rate`: Percent of candles that pass the confidence filter and become trades.
+![Best run Monte Carlo distribution](results/report/snapshots/best_run_monte_carlo.png)
 
 Detailed visuals (calibration, fold metrics, Monte Carlo distribution, equity/drawdown) stay in:
 - `results/report/per_run/<run_id>/`
@@ -130,29 +124,27 @@ Detailed visuals (calibration, fold metrics, Monte Carlo distribution, equity/dr
 <!-- AUTO_KEY_FINDINGS_START -->
 Updated automatically from `results/report/summary_table.csv`.
 
-Metric guide:
-- `AUC`: how well the model separates up vs down candles (higher is better).
-- `Accuracy`: percent of correct up/down calls.
-- `Brier`: probability error score (lower is better).
-- `Take rate`: percent of candles where a trade is taken after filtering.
-
 ### Best Configuration
 
-- 15-minute horizon, entry minute 13, logreg (calibrated), confidence threshold 0.0. Scores: AUC `0.9731`, Accuracy `0.9181`, Brier `0.0655`, Take rate `1.0000`.
+- The strongest setup so far is: 15-minute horizon, entry minute 13, logreg (calibrated), confidence threshold 0.0.
+- It shows AUC `0.9731` (higher means better separation of up vs down candles), accuracy `0.9181`, and Brier `0.0655` (lower means better probability quality).
+- Trade participation (take rate) is `1.0000`.
 
 ### Best by Horizon
 
-- `5m`: 5-minute horizon, entry minute 3, logreg (calibrated), confidence threshold 0.0. AUC `0.9230`, Accuracy `0.8481`, Brier `0.1160`.
-- `15m`: 15-minute horizon, entry minute 13, logreg (calibrated), confidence threshold 0.0. AUC `0.9731`, Accuracy `0.9181`, Brier `0.0655`.
+- `5m`: best setup is 5-minute horizon, entry minute 3, logreg (calibrated), confidence threshold 0.0.
+  Scores: AUC `0.9230`, accuracy `0.8481`, Brier `0.1160`.
+- `15m`: best setup is 15-minute horizon, entry minute 13, logreg (calibrated), confidence threshold 0.0.
+  Scores: AUC `0.9731`, accuracy `0.9181`, Brier `0.0655`.
 
 ### Confidence Threshold Notes
 
-- 15-minute, entry 13, logreg (calibrated): raising confidence threshold from `0.0` to `0.05` changed take rate by `-0.0041` and AUC by `0.0000`.
+- 15-minute, entry 13, logreg (calibrated): raising confidence threshold from `0.0` to `0.05` changed trade frequency by `-0.0041` and changed AUC by `0.0000`.
 
 ### Takeaway
 
-- Built a reproducible, leakage-aware ML research workflow with automated OOS evaluation, risk diagnostics, and visual reporting.
-- Demonstrates disciplined experimentation and model comparison across horizons and confidence filters.
+- This repo demonstrates a reproducible research workflow with strict out-of-sample testing and automated reporting.
+- It makes model comparisons easy across time horizons and confidence filters.
 <!-- AUTO_KEY_FINDINGS_END -->
 
 ## Portfolio Notes

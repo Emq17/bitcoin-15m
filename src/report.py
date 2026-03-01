@@ -285,6 +285,7 @@ def _write_snapshot_images(summary: pd.DataFrame, out_root: Path) -> None:
         best_dir / "fold_metrics.png": snapshot_dir / "best_run_fold_metrics.png",
         best_dir / "calibration.png": snapshot_dir / "best_run_calibration.png",
         best_dir / "equity_drawdown.png": snapshot_dir / "best_run_equity_drawdown.png",
+        best_dir / "monte_carlo_terminal_equity.png": snapshot_dir / "best_run_monte_carlo.png",
     }
     for src, dst in mapping.items():
         if src.exists():
@@ -323,18 +324,18 @@ def _write_key_findings(summary: pd.DataFrame, out_root: Path) -> None:
     lines = []
     lines.append("Updated automatically from `results/report/summary_table.csv`.")
     lines.append("")
-    lines.append("Metric guide:")
-    lines.append("- `AUC`: how well the model separates up vs down candles (higher is better).")
-    lines.append("- `Accuracy`: percent of correct up/down calls.")
-    lines.append("- `Brier`: probability error score (lower is better).")
-    lines.append("- `Take rate`: percent of candles where a trade is taken after filtering.")
-    lines.append("")
     lines.append("### Best Configuration")
     lines.append("")
     lines.append(
-        f"- {_model_label(best)}. "
-        f"Scores: AUC `{_fmt_float(best['auc'])}`, Accuracy `{_fmt_float(best['acc'])}`, "
-        f"Brier `{_fmt_float(best['brier'])}`, Take rate `{_fmt_float(best['take_rate'])}`."
+        f"- The strongest setup so far is: {_model_label(best)}."
+    )
+    lines.append(
+        f"- It shows AUC `{_fmt_float(best['auc'])}` (higher means better separation of up vs down candles), "
+        f"accuracy `{_fmt_float(best['acc'])}`, and Brier `{_fmt_float(best['brier'])}` "
+        f"(lower means better probability quality)."
+    )
+    lines.append(
+        f"- Trade participation (take rate) is `{_fmt_float(best['take_rate'])}`."
     )
     lines.append("")
     lines.append("### Best by Horizon")
@@ -345,8 +346,10 @@ def _write_key_findings(summary: pd.DataFrame, out_root: Path) -> None:
             continue
         row = sh.loc[sh["auc"].idxmax()]
         lines.append(
-            f"- `{int(h)}m`: {_model_label(row)}. "
-            f"AUC `{_fmt_float(row['auc'])}`, Accuracy `{_fmt_float(row['acc'])}`, "
+            f"- `{int(h)}m`: best setup is {_model_label(row)}."
+        )
+        lines.append(
+            f"  Scores: AUC `{_fmt_float(row['auc'])}`, accuracy `{_fmt_float(row['acc'])}`, "
             f"Brier `{_fmt_float(row['brier'])}`."
         )
     lines.append("")
@@ -370,7 +373,7 @@ def _write_key_findings(summary: pd.DataFrame, out_root: Path) -> None:
             )
             lines.append(
                 f"- {label}: raising confidence threshold from `{low['min_conf']}` to `{high['min_conf']}` "
-                f"changed take rate by `{_fmt_float(delta_take)}` and AUC by `{_fmt_float(delta_auc)}`."
+                f"changed trade frequency by `{_fmt_float(delta_take)}` and changed AUC by `{_fmt_float(delta_auc)}`."
             )
             wrote = True
         if wrote:
@@ -379,11 +382,10 @@ def _write_key_findings(summary: pd.DataFrame, out_root: Path) -> None:
     lines.append("### Takeaway")
     lines.append("")
     lines.append(
-        "- Built a reproducible, leakage-aware ML research workflow with automated OOS evaluation, "
-        "risk diagnostics, and visual reporting."
+        "- This repo demonstrates a reproducible research workflow with strict out-of-sample testing and automated reporting."
     )
     lines.append(
-        "- Demonstrates disciplined experimentation and model comparison across horizons and confidence filters."
+        "- It makes model comparisons easy across time horizons and confidence filters."
     )
     lines.append("")
 
