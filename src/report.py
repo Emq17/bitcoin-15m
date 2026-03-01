@@ -73,13 +73,21 @@ def _make_summary_table(runs: list[dict[str, Any]]) -> pd.DataFrame:
     return df.sort_values(["horizon", "model", "min_conf", "run_id"]).reset_index(drop=True)
 
 
-def _plot_overall_metrics(summary: pd.DataFrame, out_dir: Path) -> None:
-    if summary.empty:
-        return
-    labels = summary["run_id"].tolist()
+def _run_readable_label(row: pd.Series) -> str:
+    model = "LogReg" if str(row["model"]).lower() == "logreg" else "RF"
+    cal = "Cal" if bool(row["calibrate"]) else "NoCal"
+    return (
+        f"{int(row['horizon'])}m | e{int(row['entry_minute'])} | "
+        f"{model} {cal} | conf {float(row['min_conf']):.2f}"
+    )
+
+
+def _plot_metric_panels(summary: pd.DataFrame, title: str, out_path: Path) -> None:
+    labels = [f"R{i+1}" for i in range(len(summary))]
+    readable = [_run_readable_label(r) for _, r in summary.iterrows()]
     x = np.arange(len(labels))
 
-    fig, axes = plt.subplots(3, 1, figsize=(12, 10), sharex=True)
+    fig, axes = plt.subplots(3, 1, figsize=(13, 11), sharex=True)
     axes[0].bar(x, summary["auc"], color="#1f77b4")
     axes[0].set_ylabel("AUC")
     axes[0].grid(alpha=0.2)
@@ -94,10 +102,32 @@ def _plot_overall_metrics(summary: pd.DataFrame, out_dir: Path) -> None:
     axes[2].set_xticks(x)
     axes[2].set_xticklabels(labels, rotation=45, ha="right")
 
-    fig.suptitle("Run Comparison Metrics (OOS)")
-    fig.tight_layout()
-    fig.savefig(out_dir / "overall_metrics.png", dpi=160)
+    fig.suptitle(title)
+    legend_lines = [f"{labels[i]}: {readable[i]}" for i in range(len(labels))]
+    fig.text(0.02, 0.02, "\n".join(legend_lines), fontsize=8, va="bottom", family="monospace")
+    fig.tight_layout(rect=[0, 0.18, 1, 0.97])
+    fig.savefig(out_path, dpi=160)
     plt.close(fig)
+
+
+def _plot_overall_metrics(summary: pd.DataFrame, out_dir: Path) -> None:
+    if summary.empty:
+        return
+    _plot_metric_panels(summary, "Run Comparison Metrics (OOS)", out_dir / "overall_metrics.png")
+
+
+def _plot_overall_metrics_by_horizon(summary: pd.DataFrame, out_dir: Path) -> None:
+    if summary.empty:
+        return
+    for h in sorted(summary["horizon"].unique()):
+        sh = summary[summary["horizon"] == h].reset_index(drop=True)
+        if sh.empty:
+            continue
+        _plot_metric_panels(
+            sh,
+            f"Run Comparison Metrics (OOS) - {int(h)}m Horizon",
+            out_dir / f"overall_metrics_h{int(h)}.png",
+        )
 
 
 def _plot_confidence_tradeoff(summary: pd.DataFrame, out_dir: Path) -> None:
@@ -249,6 +279,8 @@ def _write_snapshot_images(summary: pd.DataFrame, out_root: Path) -> None:
     snapshot_dir.mkdir(parents=True, exist_ok=True)
     mapping = {
         out_root / "overall_metrics.png": snapshot_dir / "overall_metrics.png",
+        out_root / "overall_metrics_h5.png": snapshot_dir / "overall_metrics_h5.png",
+        out_root / "overall_metrics_h15.png": snapshot_dir / "overall_metrics_h15.png",
         out_root / "confidence_tradeoff.png": snapshot_dir / "confidence_tradeoff.png",
         best_dir / "fold_metrics.png": snapshot_dir / "best_run_fold_metrics.png",
         best_dir / "calibration.png": snapshot_dir / "best_run_calibration.png",
@@ -266,6 +298,14 @@ def _fmt_float(v: Any, nd: int = 4) -> str:
         return "nan"
 
 
+def _model_label(row: pd.Series) -> str:
+    cal = "calibrated" if bool(row["calibrate"]) else "uncalibrated"
+    return (
+        f"{int(row['horizon'])}-minute horizon, entry minute {int(row['entry_minute'])}, "
+        f"{str(row['model'])} ({cal}), confidence threshold {row['min_conf']}"
+    )
+
+
 def _write_key_findings(summary: pd.DataFrame, out_root: Path) -> None:
     if summary.empty:
         return
@@ -281,17 +321,20 @@ def _write_key_findings(summary: pd.DataFrame, out_root: Path) -> None:
     best = s.loc[best_idx]
 
     lines = []
-    lines.append("## Key Findings")
+    lines.append("Updated automatically from `results/report/summary_table.csv`.")
     lines.append("")
-    lines.append("Auto-generated from `results/report/summary_table.csv`.")
+    lines.append("Metric guide:")
+    lines.append("- `AUC`: how well the model separates up vs down candles (higher is better).")
+    lines.append("- `Accuracy`: percent of correct up/down calls.")
+    lines.append("- `Brier`: probability error score (lower is better).")
+    lines.append("- `Take rate`: percent of candles where a trade is taken after filtering.")
     lines.append("")
-    lines.append("### Overall Best Run (by AUC)")
+    lines.append("### Best Configuration")
     lines.append("")
     lines.append(
-        f"- `{best['run_id']}` | horizon `{int(best['horizon'])}m` | model `{best['model']}` | "
-        f"`min_conf={best['min_conf']}` | AUC `{_fmt_float(best['auc'])}` | "
-        f"ACC `{_fmt_float(best['acc'])}` | Brier `{_fmt_float(best['brier'])}` | "
-        f"Take rate `{_fmt_float(best['take_rate'])}`"
+        f"- {_model_label(best)}. "
+        f"Scores: AUC `{_fmt_float(best['auc'])}`, Accuracy `{_fmt_float(best['acc'])}`, "
+        f"Brier `{_fmt_float(best['brier'])}`, Take rate `{_fmt_float(best['take_rate'])}`."
     )
     lines.append("")
     lines.append("### Best by Horizon")
@@ -302,9 +345,9 @@ def _write_key_findings(summary: pd.DataFrame, out_root: Path) -> None:
             continue
         row = sh.loc[sh["auc"].idxmax()]
         lines.append(
-            f"- `{int(h)}m`: `{row['model']}` (`min_conf={row['min_conf']}`) "
-            f"with AUC `{_fmt_float(row['auc'])}`, ACC `{_fmt_float(row['acc'])}`, "
-            f"Brier `{_fmt_float(row['brier'])}`"
+            f"- `{int(h)}m`: {_model_label(row)}. "
+            f"AUC `{_fmt_float(row['auc'])}`, Accuracy `{_fmt_float(row['acc'])}`, "
+            f"Brier `{_fmt_float(row['brier'])}`."
         )
     lines.append("")
 
@@ -321,16 +364,19 @@ def _write_key_findings(summary: pd.DataFrame, out_root: Path) -> None:
             high = g.iloc[-1]
             delta_take = float(high["take_rate"] - low["take_rate"])
             delta_auc = float(high["auc"] - low["auc"])
-            label = f"h={int(key[0])}, e={int(key[1])}, {key[2]}, {'cal' if key[3] else 'noc'}"
+            label = (
+                f"{int(key[0])}-minute, entry {int(key[1])}, {key[2]} "
+                f"({'calibrated' if key[3] else 'uncalibrated'})"
+            )
             lines.append(
-                f"- `{label}`: from `min_conf={low['min_conf']}` to `{high['min_conf']}` -> "
-                f"take rate change `{_fmt_float(delta_take)}`, AUC change `{_fmt_float(delta_auc)}`"
+                f"- {label}: raising confidence threshold from `{low['min_conf']}` to `{high['min_conf']}` "
+                f"changed take rate by `{_fmt_float(delta_take)}` and AUC by `{_fmt_float(delta_auc)}`."
             )
             wrote = True
         if wrote:
             lines.append("")
 
-    lines.append("### Recruiter-Friendly Takeaway")
+    lines.append("### Takeaway")
     lines.append("")
     lines.append(
         "- Built a reproducible, leakage-aware ML research workflow with automated OOS evaluation, "
@@ -392,6 +438,7 @@ def build_report(
     summary = _make_summary_table(runs)
     summary.to_csv(out_root / "summary_table.csv", index=False)
     _plot_overall_metrics(summary, out_root)
+    _plot_overall_metrics_by_horizon(summary, out_root)
     _plot_confidence_tradeoff(summary, out_root)
 
     per_run_dir = out_root / "per_run"

@@ -110,34 +110,46 @@ Generated artifacts:
 
 ## Results Snapshot
 
-Representative output visuals are generated into `results/report/snapshots/`.
+Representative visuals (lightweight view) are generated into `results/report/snapshots/`.
 
-![Overall OOS metrics](results/report/snapshots/overall_metrics.png)
-![Confidence threshold tradeoff](results/report/snapshots/confidence_tradeoff.png)
-![Best run fold metrics](results/report/snapshots/best_run_fold_metrics.png)
-![Best run calibration](results/report/snapshots/best_run_calibration.png)
+![5m run comparison](results/report/snapshots/overall_metrics_h5.png)
+![15m run comparison](results/report/snapshots/overall_metrics_h15.png)
 
-## Auto Key Findings
+### Chart Key (Plain English)
 
-<!-- AUTO_KEY_FINDINGS_START -->
+- `AUC`: How well the model separates green vs red candles. Higher is better.
+- `Accuracy`: Percent of correct direction calls. Higher is better.
+- `Brier`: How far predicted probabilities are from actual outcomes. Lower is better.
+- `Take rate`: Percent of candles that pass the confidence filter and become trades.
+
+Detailed visuals (calibration, fold metrics, Monte Carlo distribution, equity/drawdown) stay in:
+- `results/report/per_run/<run_id>/`
+
 ## Key Findings
 
-Auto-generated from `results/report/summary_table.csv`.
+<!-- AUTO_KEY_FINDINGS_START -->
+Updated automatically from `results/report/summary_table.csv`.
 
-### Overall Best Run (by AUC)
+Metric guide:
+- `AUC`: how well the model separates up vs down candles (higher is better).
+- `Accuracy`: percent of correct up/down calls.
+- `Brier`: probability error score (lower is better).
+- `Take rate`: percent of candles where a trade is taken after filtering.
 
-- `20260301T140248Z_h15_e13_logreg_cal` | horizon `15m` | model `logreg` | `min_conf=0.0` | AUC `0.9731` | ACC `0.9181` | Brier `0.0655` | Take rate `1.0000`
+### Best Configuration
+
+- 15-minute horizon, entry minute 13, logreg (calibrated), confidence threshold 0.0. Scores: AUC `0.9731`, Accuracy `0.9181`, Brier `0.0655`, Take rate `1.0000`.
 
 ### Best by Horizon
 
-- `5m`: `logreg` (`min_conf=0.0`) with AUC `0.9230`, ACC `0.8481`, Brier `0.1160`
-- `15m`: `logreg` (`min_conf=0.0`) with AUC `0.9731`, ACC `0.9181`, Brier `0.0655`
+- `5m`: 5-minute horizon, entry minute 3, logreg (calibrated), confidence threshold 0.0. AUC `0.9230`, Accuracy `0.8481`, Brier `0.1160`.
+- `15m`: 15-minute horizon, entry minute 13, logreg (calibrated), confidence threshold 0.0. AUC `0.9731`, Accuracy `0.9181`, Brier `0.0655`.
 
 ### Confidence Threshold Notes
 
-- `h=15, e=13, logreg, cal`: from `min_conf=0.0` to `0.05` -> take rate change `-0.0041`, AUC change `0.0000`
+- 15-minute, entry 13, logreg (calibrated): raising confidence threshold from `0.0` to `0.05` changed take rate by `-0.0041` and AUC by `0.0000`.
 
-### Recruiter-Friendly Takeaway
+### Takeaway
 
 - Built a reproducible, leakage-aware ML research workflow with automated OOS evaluation, risk diagnostics, and visual reporting.
 - Demonstrates disciplined experimentation and model comparison across horizons and confidence filters.
