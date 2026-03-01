@@ -112,9 +112,8 @@ Generated artifacts:
 
 Representative visuals (lightweight view) are generated into `results/report/snapshots/`.
 
-![5m run comparison](results/report/snapshots/overall_metrics_h5.png)
 ![15m run comparison](results/report/snapshots/overall_metrics_h15.png)
-![Best run Monte Carlo distribution](results/report/snapshots/best_run_monte_carlo.png)
+![Best run Monte Carlo paths](results/report/snapshots/best_run_monte_carlo_paths.png)
 
 Detailed visuals (calibration, fold metrics, Monte Carlo distribution, equity/drawdown) stay in:
 - `results/report/per_run/<run_id>/`
@@ -130,12 +129,15 @@ Updated automatically from `results/report/summary_table.csv`.
 - It shows AUC `0.9731` (higher means better separation of up vs down candles), accuracy `0.9181`, and Brier `0.0655` (lower means better probability quality).
 - Trade participation (take rate) is `1.0000`.
 
-### Best by Horizon
+### 15-Minute Focus
 
-- `5m`: best setup is 5-minute horizon, entry minute 3, logreg (calibrated), confidence threshold 0.0.
-  Scores: AUC `0.9230`, accuracy `0.8481`, Brier `0.1160`.
-- `15m`: best setup is 15-minute horizon, entry minute 13, logreg (calibrated), confidence threshold 0.0.
+- Best 15m setup: 15-minute horizon, entry minute 13, logreg (calibrated), confidence threshold 0.0.
   Scores: AUC `0.9731`, accuracy `0.9181`, Brier `0.0655`.
+
+### Secondary 5-Minute Context
+
+- Best 5m setup: 5-minute horizon, entry minute 3, logreg (calibrated), confidence threshold 0.0.
+  Scores: AUC `0.9230`, accuracy `0.8481`, Brier `0.1160`.
 
 ### Confidence Threshold Notes
 

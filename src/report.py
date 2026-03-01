@@ -260,6 +260,39 @@ def _plot_monte_carlo(preds: pd.DataFrame, title: str, out_path: Path, sims: int
     plt.close(fig)
 
 
+def _plot_monte_carlo_paths(preds: pd.DataFrame, title: str, out_path: Path, sims: int = 300) -> None:
+    r = preds[preds["take_trade"] == 1]["trade_return"].to_numpy()
+    if len(r) == 0:
+        return
+
+    rng = np.random.default_rng(42)
+    n = len(r)
+    # Keep the chart readable by limiting plotted paths.
+    n_paths = int(min(max(sims, 50), 400))
+    samples = rng.choice(r, size=(n_paths, n), replace=True)
+    eq_paths = np.cumprod(1.0 + samples, axis=1)
+
+    fig, ax = plt.subplots(figsize=(10, 6))
+    for i in range(n_paths):
+        ax.plot(eq_paths[i], alpha=0.08, color="#1f77b4", linewidth=1.0)
+
+    median_path = np.median(eq_paths, axis=0)
+    p05 = np.percentile(eq_paths, 5, axis=0)
+    p95 = np.percentile(eq_paths, 95, axis=0)
+    ax.plot(median_path, color="#d62728", linewidth=2.0, label="median path")
+    ax.plot(p05, color="#2ca02c", linewidth=1.5, linestyle="--", label="5th/95th percentile")
+    ax.plot(p95, color="#2ca02c", linewidth=1.5, linestyle="--")
+
+    ax.set_title(f"{title}: Monte Carlo Equity Paths")
+    ax.set_xlabel("Trade Index")
+    ax.set_ylabel("Equity")
+    ax.grid(alpha=0.25)
+    ax.legend()
+    fig.tight_layout()
+    fig.savefig(out_path, dpi=160)
+    plt.close(fig)
+
+
 def _make_run_title(run: dict[str, Any]) -> str:
     cfg = run["config"]
     cal = "cal" if cfg["calibrate"] else "noc"
@@ -286,6 +319,7 @@ def _write_snapshot_images(summary: pd.DataFrame, out_root: Path) -> None:
         best_dir / "calibration.png": snapshot_dir / "best_run_calibration.png",
         best_dir / "equity_drawdown.png": snapshot_dir / "best_run_equity_drawdown.png",
         best_dir / "monte_carlo_terminal_equity.png": snapshot_dir / "best_run_monte_carlo.png",
+        best_dir / "monte_carlo_paths.png": snapshot_dir / "best_run_monte_carlo_paths.png",
     }
     for src, dst in mapping.items():
         if src.exists():
@@ -338,21 +372,31 @@ def _write_key_findings(summary: pd.DataFrame, out_root: Path) -> None:
         f"- Trade participation (take rate) is `{_fmt_float(best['take_rate'])}`."
     )
     lines.append("")
-    lines.append("### Best by Horizon")
+    lines.append("### 15-Minute Focus")
     lines.append("")
-    for h in sorted(s["horizon"].unique()):
-        sh = s[s["horizon"] == h]
-        if sh.empty:
-            continue
-        row = sh.loc[sh["auc"].idxmax()]
+    s15 = s[s["horizon"] == 15]
+    if not s15.empty:
+        row15 = s15.loc[s15["auc"].idxmax()]
+        lines.append(f"- Best 15m setup: {_model_label(row15)}.")
         lines.append(
-            f"- `{int(h)}m`: best setup is {_model_label(row)}."
+            f"  Scores: AUC `{_fmt_float(row15['auc'])}`, accuracy `{_fmt_float(row15['acc'])}`, "
+            f"Brier `{_fmt_float(row15['brier'])}`."
         )
-        lines.append(
-            f"  Scores: AUC `{_fmt_float(row['auc'])}`, accuracy `{_fmt_float(row['acc'])}`, "
-            f"Brier `{_fmt_float(row['brier'])}`."
-        )
+    else:
+        lines.append("- No 15-minute runs found in current report inputs.")
     lines.append("")
+
+    s5 = s[s["horizon"] == 5]
+    if not s5.empty:
+        row5 = s5.loc[s5["auc"].idxmax()]
+        lines.append("### Secondary 5-Minute Context")
+        lines.append("")
+        lines.append(f"- Best 5m setup: {_model_label(row5)}.")
+        lines.append(
+            f"  Scores: AUC `{_fmt_float(row5['auc'])}`, accuracy `{_fmt_float(row5['acc'])}`, "
+            f"Brier `{_fmt_float(row5['brier'])}`."
+        )
+        lines.append("")
 
     if s["min_conf"].nunique() > 1:
         lines.append("### Confidence Threshold Notes")
@@ -455,6 +499,7 @@ def build_report(
         _plot_probability_hist(run["preds"], title, run_out / "probability_hist.png")
         _plot_equity_drawdown(run["preds"], title, run_out / "equity_drawdown.png")
         _plot_monte_carlo(run["preds"], title, run_out / "monte_carlo_terminal_equity.png", sims=mc_sims)
+        _plot_monte_carlo_paths(run["preds"], title, run_out / "monte_carlo_paths.png", sims=mc_sims)
 
     _write_snapshot_images(summary, out_root)
     _write_key_findings(summary, out_root)
